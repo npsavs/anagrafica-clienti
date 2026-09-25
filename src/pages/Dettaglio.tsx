@@ -29,10 +29,21 @@ export default function Dettaglio() {
 
   const cleanPhone = (client.phone || '').replace(/\D/g, '').replace(/^39/, '')
   const fullAddress = [client.address, client.zip, client.city, client.province].filter(Boolean).join(' ')
+  const whatsappLink = cleanPhone
+    ? `https://wa.me/39${cleanPhone}?text=${encodeURIComponent(`Ciao ${client.name}, `)}`
+    : null
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
-      <Link to="/" className="text-blue-600 text-sm hover:underline">← Torna alla lista</Link>
+      <div className="flex justify-between items-center">
+        <Link to="/" className="text-blue-600 text-sm hover:underline">← Torna alla lista</Link>
+        <Link
+          to={`/cliente/${client.id}/modifica`}
+          className="bg-gray-100 px-4 py-2 rounded-lg text-sm"
+        >
+          Modifica
+        </Link>
+      </div>
 
       <div className="bg-white rounded-xl shadow p-6 space-y-3">
         <h1 className="text-2xl font-bold">{client.name}</h1>
@@ -49,6 +60,17 @@ export default function Dettaglio() {
             className="block text-center bg-blue-600 text-white py-3 rounded-xl font-medium"
           >
             Chiama
+          </a>
+        )}
+
+        {whatsappLink && (
+          <a
+            href={whatsappLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-center bg-green-500 text-white py-3 rounded-xl font-medium"
+          >
+            Scrivi su WhatsApp
           </a>
         )}
 
@@ -75,12 +97,12 @@ export default function Dettaglio() {
 
       <button
         onClick={async () => {
-          if (!confirm('Eliminare questo cliente? Verrà rimosso anche dall\'altra app.')) return
+          if (!confirm('Eliminare questo cliente? Verrà rimosso anche da Gestione Clienti.')) return
           const { error } = await supabase.from('clients').delete().eq('id', client.id)
           if (error) alert(error.message)
           else navigate('/')
         }}
-        className="w-full text-red-600 text-sm"
+        className="w-full bg-red-100 text-red-700 py-3 rounded-xl text-sm"
       >
         Elimina cliente
       </button>

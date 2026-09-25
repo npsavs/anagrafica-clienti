@@ -6,6 +6,7 @@ import Layout from './components/Layout'
 import Lista from './pages/Lista'
 import Dettaglio from './pages/Dettaglio'
 import Nuovo from './pages/Nuovo'
+import Modifica from './pages/Modifica'
 
 function App() {
   const [session, setSession] = useState<any>(null)
@@ -34,6 +35,7 @@ function App() {
           <Route index element={<Lista />} />
           <Route path="nuovo" element={<Nuovo />} />
           <Route path="cliente/:id" element={<Dettaglio />} />
+          <Route path="cliente/:id/modifica" element={<Modifica />} />
         </Route>
       </Routes>
     </BrowserRouter>

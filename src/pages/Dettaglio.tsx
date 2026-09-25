@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import type { Client } from '../types'
 
 const GESTIONE_URL = 'https://gestione-clienti-sepia.vercel.app'
+const PREVENTIVI_URL = 'https://preventivi-ashen.vercel.app'
 
 export default function Dettaglio() {
   const { id } = useParams()
@@ -37,10 +38,7 @@ export default function Dettaglio() {
     <div className="max-w-xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
         <Link to="/" className="text-blue-600 text-sm hover:underline">← Torna alla lista</Link>
-        <Link
-          to={`/cliente/${client.id}/modifica`}
-          className="bg-gray-100 px-4 py-2 rounded-lg text-sm"
-        >
+        <Link to={`/cliente/${client.id}/modifica`} className="bg-gray-100 px-4 py-2 rounded-lg text-sm">
           Modifica
         </Link>
       </div>
@@ -55,21 +53,13 @@ export default function Dettaglio() {
 
       <div className="grid gap-3">
         {cleanPhone && (
-          <a
-            href={`tel:+39${cleanPhone}`}
-            className="block text-center bg-blue-600 text-white py-3 rounded-xl font-medium"
-          >
+          <a href={`tel:+39${cleanPhone}`} className="block text-center bg-blue-600 text-white py-3 rounded-xl font-medium">
             Chiama
           </a>
         )}
 
         {whatsappLink && (
-          <a
-            href={whatsappLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block text-center bg-green-500 text-white py-3 rounded-xl font-medium"
-          >
+          <a href={whatsappLink} target="_blank" rel="noopener noreferrer" className="block text-center bg-green-500 text-white py-3 rounded-xl font-medium">
             Scrivi su WhatsApp
           </a>
         )}
@@ -86,9 +76,14 @@ export default function Dettaglio() {
         )}
 
         <a
+          href={`${PREVENTIVI_URL}/nuovo?cliente=${client.id}`}
+          className="block text-center bg-violet-700 text-white py-3 rounded-xl font-medium"
+        >
+          Crea Preventivo
+        </a>
+
+        <a
           href={`${GESTIONE_URL}/client/${client.id}`}
-          target="_blank"
-          rel="noopener noreferrer"
           className="block text-center bg-emerald-600 text-white py-3 rounded-xl font-medium"
         >
           Apri in Gestione Clienti
@@ -97,7 +92,7 @@ export default function Dettaglio() {
 
       <button
         onClick={async () => {
-          if (!confirm('Eliminare questo cliente? Verrà rimosso anche da Gestione Clienti.')) return
+          if (!confirm('Eliminare questo cliente? Verrà rimosso anche dalle altre app.')) return
           const { error } = await supabase.from('clients').delete().eq('id', client.id)
           if (error) alert(error.message)
           else navigate('/')

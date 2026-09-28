@@ -3,10 +3,12 @@ export interface Client {
   name: string
   email: string | null
   phone: string | null
-  notes: string | null
   address: string | null
   city: string | null
   zip: string | null
   province: string | null
-  created_at: string
+  notes: string | null
+  pec: string | null
+  codice_sdi: string | null
+  created_at?: string
 }

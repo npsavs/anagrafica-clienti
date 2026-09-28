@@ -41,6 +41,7 @@ export default function Dettaglio() {
         <p className="text-slate-600">{client.email || 'Nessuna email'}</p>
         <p className="text-slate-600">PEC: {client.pec || '—'}</p>
         <p className="text-slate-600">Codice SDI: {client.codice_sdi || '—'}</p>
+        <p className="text-slate-600">CF / P.IVA: {client.cf_piva || '—'}</p>
         <p className="text-slate-600">{client.phone || 'Nessun telefono'}</p>
         <p className="text-slate-600">{fullAddress || 'Nessun indirizzo'}</p>
         {client.notes && <p className="text-slate-700 whitespace-pre-wrap">{client.notes}</p>}

@@ -10,5 +10,6 @@ export interface Client {
   notes: string | null
   pec: string | null
   codice_sdi: string | null
+  cf_piva: string | null
   created_at?: string
 }

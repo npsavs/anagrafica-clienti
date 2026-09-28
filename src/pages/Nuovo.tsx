@@ -10,6 +10,7 @@ export default function Nuovo() {
     email: '',
     pec: '',
     codice_sdi: '',
+    cf_piva: '',
     phone: '',
     address: '',
     zip: '',
@@ -30,6 +31,7 @@ export default function Nuovo() {
       email: form.email || null,
       pec: form.pec || null,
       codice_sdi: form.codice_sdi || null,
+      cf_piva: form.cf_piva || null,
       phone: form.phone || null,
       address: form.address || null,
       zip: form.zip || null,
@@ -52,6 +54,7 @@ export default function Nuovo() {
         <input name="email" type="email" placeholder="Email" value={form.email} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
         <input name="pec" type="email" placeholder="PEC" value={form.pec} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
         <input name="codice_sdi" placeholder="Codice univoco SDI" value={form.codice_sdi} onChange={handleChange} maxLength={7} className="w-full border rounded-lg px-3 py-2" />
+        <input name="cf_piva" placeholder="Codice fiscale o Partita IVA" value={form.cf_piva} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
         <input name="address" placeholder="Indirizzo" value={form.address} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
         <div className="grid grid-cols-3 gap-3">
           <input name="zip" placeholder="CAP" value={form.zip} onChange={handleChange} className="border rounded-lg px-3 py-2" />

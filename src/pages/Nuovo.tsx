@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function Nuovo() {
   const navigate = useNavigate()
+  const [params] = useSearchParams()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
     name: '',
@@ -17,9 +18,10 @@ export default function Nuovo() {
     city: '',
     province: '',
     notes: '',
+    kind: params.get('kind') === 'fornitore' ? 'fornitore' : 'cliente',
   })
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setForm(prev => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
@@ -38,17 +40,24 @@ export default function Nuovo() {
       city: form.city || null,
       province: form.province || null,
       notes: form.notes || null,
+      kind: form.kind,
     })
     setSaving(false)
     if (error) alert('Errore: ' + error.message)
     else navigate('/')
   }
 
+  const etichetta = form.kind === 'fornitore' ? 'Fornitore' : 'Cliente'
+
   return (
     <div className="max-w-xl mx-auto">
       <Link to="/" className="text-blue-600 text-sm hover:underline">← Torna alla lista</Link>
-      <h1 className="text-2xl font-bold mt-2 mb-6">Nuovo Cliente</h1>
+      <h1 className="text-2xl font-bold mt-2 mb-6">Nuovo {etichetta}</h1>
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow space-y-4">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setForm(p => ({ ...p, kind: 'cliente' }))} className={`flex-1 py-2 rounded-lg ${form.kind === 'cliente' ? 'bg-blue-600 text-white' : 'border'}`}>Cliente</button>
+          <button type="button" onClick={() => setForm(p => ({ ...p, kind: 'fornitore' }))} className={`flex-1 py-2 rounded-lg ${form.kind === 'fornitore' ? 'bg-blue-600 text-white' : 'border'}`}>Fornitore</button>
+        </div>
         <input name="name" required placeholder="Nome *" value={form.name} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
         <input name="phone" placeholder="Telefono" value={form.phone} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
         <input name="email" type="email" placeholder="Email" value={form.email} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />

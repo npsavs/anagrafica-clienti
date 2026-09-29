@@ -19,6 +19,7 @@ export default function Modifica() {
     city: '',
     province: '',
     notes: '',
+    kind: 'cliente',
   })
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export default function Modifica() {
           city: data.city || '',
           province: data.province || '',
           notes: data.notes || '',
+          kind: data.kind === 'fornitore' ? 'fornitore' : 'cliente',
         })
       }
       setLoading(false)
@@ -62,6 +64,7 @@ export default function Modifica() {
       city: form.city || null,
       province: form.province || null,
       notes: form.notes || null,
+      kind: form.kind,
     }).eq('id', id)
     setSaving(false)
     if (error) alert('Errore: ' + error.message)
@@ -72,9 +75,13 @@ export default function Modifica() {
 
   return (
     <div className="max-w-xl mx-auto">
-      <Link to={`/cliente/${id}`} className="text-blue-600 text-sm hover:underline">← Torna al cliente</Link>
-      <h1 className="text-2xl font-bold mt-2 mb-6">Modifica Cliente</h1>
+      <Link to={`/cliente/${id}`} className="text-blue-600 text-sm hover:underline">← Torna al dettaglio</Link>
+      <h1 className="text-2xl font-bold mt-2 mb-6">Modifica</h1>
       <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow space-y-4">
+        <div className="flex gap-2">
+          <button type="button" onClick={() => setForm(p => ({ ...p, kind: 'cliente' }))} className={`flex-1 py-2 rounded-lg ${form.kind === 'cliente' ? 'bg-blue-600 text-white' : 'border'}`}>Cliente</button>
+          <button type="button" onClick={() => setForm(p => ({ ...p, kind: 'fornitore' }))} className={`flex-1 py-2 rounded-lg ${form.kind === 'fornitore' ? 'bg-blue-600 text-white' : 'border'}`}>Fornitore</button>
+        </div>
         <input name="name" required placeholder="Nome *" value={form.name} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
         <input name="phone" placeholder="Telefono" value={form.phone} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />
         <input name="email" type="email" placeholder="Email" value={form.email} onChange={handleChange} className="w-full border rounded-lg px-3 py-2" />

@@ -11,5 +11,6 @@ export interface Client {
   pec: string | null
   codice_sdi: string | null
   cf_piva: string | null
+  kind: 'cliente' | 'fornitore'
   created_at?: string
 }

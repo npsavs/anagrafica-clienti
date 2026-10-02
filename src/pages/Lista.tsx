@@ -12,12 +12,49 @@ export default function Lista() {
   const [dato, setDato] = useState('')
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    supabase.from('clients').select('*').order('name').then(({ data }) => {
-      setClients(data || [])
-      setLoading(false)
-    })
-  }, [])
+  useEffect(() => { load() }, [])
+
+  async function load() {
+    const { data } = await supabase.from('clients').select('*').order('name')
+    setClients(data || [])
+    setLoading(false)
+  }
+
+  function chiave(c: Client) {
+    return (c.name || '').trim().toLowerCase().replace(/\s+/g, ' ')
+  }
+
+  async function controllaDoppioni() {
+    const { data, error } = await supabase.from('clients').select('*').order('name')
+    if (error) return alert(error.message)
+    const lista = data || []
+    const gruppi: Record<string, Client[]> = {}
+    for (const c of lista) {
+      const k = chiave(c)
+      if (!k) continue
+      if (!gruppi[k]) gruppi[k] = []
+      gruppi[k].push(c)
+    }
+    const doppi = Object.values(gruppi).filter(g => g.length > 1)
+    if (doppi.length === 0) return alert('Nessun doppione con lo stesso nome')
+    for (const g of doppi) {
+      const tieni = g[0]
+      const ok = confirm(g.length + ' schede con nome ' + tieni.name + '. Unirle? Resta la prima.')
+      if (!ok) continue
+      for (const doppio of g.slice(1)) {
+        const a = await supabase.from('invoices').update({ client_id: tieni.id }).eq('client_id', doppio.id)
+        const b = await supabase.from('subscriptions').update({ client_id: tieni.id }).eq('client_id', doppio.id)
+        const c1 = await supabase.from('interventions').update({ client_id: tieni.id }).eq('client_id', doppio.id)
+        const d = await supabase.from('quotes').update({ client_id: tieni.id }).eq('client_id', doppio.id)
+        const e = await supabase.from('clients').delete().eq('id', doppio.id)
+        const err = a.error || b.error || c1.error || d.error || e.error
+        if (err) alert(err.message)
+      }
+    }
+    const dopo = await supabase.from('clients').select('*').order('name')
+    setClients(dopo.data || [])
+    alert('Controllo finito')
+  }
 
   const famiglia = clients.filter(c => (c.kind || 'cliente') === kind)
   const cittaList = Array.from(new Set(famiglia.map(c => (c.city || '').trim()).filter(Boolean))).sort()
@@ -49,9 +86,12 @@ export default function Lista() {
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <h1 className="text-2xl font-bold">{kind === 'fornitore' ? 'Fornitori' : 'Clienti'}</h1>
-        <Link to={'/nuovo?kind=' + kind} className="bg-blue-600 text-white px-4 py-2 rounded-lg">
-          {kind === 'fornitore' ? '+ Nuovo fornitore' : '+ Nuovo cliente'}
-        </Link>
+        <div className="flex gap-2">
+          <button type="button" onClick={controllaDoppioni} className="border px-4 py-2 rounded-lg">Cerca doppioni</button>
+          <Link to={'/nuovo?kind=' + kind} className="bg-blue-600 text-white px-4 py-2 rounded-lg">
+            {kind === 'fornitore' ? '+ Nuovo fornitore' : '+ Nuovo cliente'}
+          </Link>
+        </div>
       </div>
       <div className="flex gap-2 flex-wrap">
         <Link to="/clienti" className={'px-4 py-2 rounded-lg ' + (kind === 'cliente' ? 'bg-blue-600 text-white' : 'bg-white border')}>Clienti</Link>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import * as XLSX from 'xlsx'
 
 type Riga = {
   name: string
@@ -17,12 +18,8 @@ type Riga = {
   notes: string
 }
 
-function pulisci(v: string) {
-  return String(v || '').replace(/^"|"$/g, '').trim()
-}
-
-function split(line: string) {
-  return line.split(line.indexOf(';') >= 0 ? ';' : ',')
+function cella(row: any, nome: string) {
+  return String(row[nome] || '').trim()
 }
 
 export default function Importa() {
@@ -34,39 +31,37 @@ export default function Importa() {
     if (!file) return
     const reader = new FileReader()
     reader.onload = () => {
-      const text = String(reader.result || '')
-      const lines = text.split(/\r?\n/).filter(Boolean)
-      const head = split(lines[0]).map(h => pulisci(h).toUpperCase())
-      const idx = (nome: string) => head.indexOf(nome)
+      const wb = XLSX.read(reader.result, { type: 'array' })
+      const sheet = wb.Sheets[wb.SheetNames[0]]
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as any[]
       const out: Riga[] = []
-      for (const line of lines.slice(1)) {
-        const c = split(line).map(pulisci)
-        const ragione = c[idx('RAGIONE_SOCIALE')] || ''
-        const nome = (c[idx('NOME')] + ' ' + c[idx('COGNOME')]).trim()
+      for (const row of rows) {
+        const ragione = cella(row, 'RAGIONE_SOCIALE')
+        const nome = (cella(row, 'NOME') + ' ' + cella(row, 'COGNOME')).trim()
         const name = ragione && ragione !== 'NUOVO CLIENTE' ? ragione : nome
-        if (!name || name === '.' ) continue
-        const tipo = (c[idx('TIPO')] || '').toUpperCase()
-        const piva = c[idx('PARTITA_IVA')] || ''
-        const cf = c[idx('CODICE_FISCALE')] || ''
+        if (!name || name === '.') continue
+        const tipo = cella(row, 'TIPO').toUpperCase()
+        const piva = cella(row, 'PARTITA_IVA')
+        const cf = cella(row, 'CODICE_FISCALE')
         out.push({
           name,
           kind: tipo.indexOf('FORN') >= 0 ? 'fornitore' : 'cliente',
           cf_piva: (piva && piva !== '.' ? piva : cf).replace(/^\./, ''),
-          codice_sdi: c[idx('COD_DEST')] || '',
-          phone: c[idx('CELLULARE')] || c[idx('TELEFONO')] || '',
-          email: c[idx('EMAIL')] || c[idx('EMAIL_ADMIN')] || '',
-          pec: c[idx('EMAIL_PEC')] || '',
-          address: c[idx('INDIRIZZO')] || '',
-          zip: c[idx('CAP')] || '',
-          city: c[idx('CITTA')] || '',
-          province: c[idx('PROVINCIA_SIGLA')] || '',
-          notes: [c[idx('NOTE')], c[idx('SETTORE')], c[idx('FAX')] ? 'Fax ' + c[idx('FAX')] : ''].filter(Boolean).join(' · '),
+          codice_sdi: cella(row, 'COD_DEST'),
+          phone: cella(row, 'CELLULARE') || cella(row, 'TELEFONO'),
+          email: cella(row, 'EMAIL') || cella(row, 'EMAIL_ADMIN'),
+          pec: cella(row, 'EMAIL_PEC'),
+          address: cella(row, 'INDIRIZZO'),
+          zip: cella(row, 'CAP'),
+          city: cella(row, 'CITTA'),
+          province: cella(row, 'PROVINCIA_SIGLA'),
+          notes: [cella(row, 'NOTE'), cella(row, 'SETTORE'), cella(row, 'FAX') ? 'Fax ' + cella(row, 'FAX') : ''].filter(Boolean).join(' · '),
         })
       }
       setRighe(out)
-      setLog(out.length + ' righe lette. Controlla cliente o fornitore, poi importa.')
+      setLog(out.length + ' righe lette. Su ogni riga scegli cliente o fornitore, poi importa.')
     }
-    reader.readAsText(file, 'windows-1252')
+    reader.readAsArrayBuffer(file)
   }
 
   function setKind(i: number, kind: 'cliente' | 'fornitore') {
@@ -101,6 +96,7 @@ export default function Importa() {
       })
       if (error) return setLog(error.message)
       nuovi++
+      gia.push({ id: '', name: r.name, cf_piva: r.cf_piva })
     }
     setLog('Importati ' + nuovi + '. Gia presenti ' + saltati + '.')
   }
@@ -109,8 +105,8 @@ export default function Importa() {
     <div className="space-y-4">
       <Link to="/clienti" className="text-sm text-blue-600">Torna ai clienti</Link>
       <h1 className="text-2xl font-bold">Importa anagrafica</h1>
-      <p className="text-sm text-slate-600">Dal file Excel fai Salva con nome, CSV separato da punto e virgola. Su ogni riga confermi se e cliente o fornitore.</p>
-      <input type="file" accept=".csv,text/csv" onChange={onFile} />
+      <p className="text-sm text-slate-600">Carica il file Excel .xlsx. Il tipo del file e gia impostato, ma puoi cambiarlo riga per riga.</p>
+      <input type="file" accept=".xlsx,.xls" onChange={onFile} />
       {log ? <p className="text-sm">{log}</p> : null}
       {righe.length ? <button type="button" onClick={importa} className="bg-blue-600 text-white px-4 py-2 rounded-lg">Importa {righe.length} schede</button> : null}
       <div className="bg-white rounded-xl shadow divide-y">

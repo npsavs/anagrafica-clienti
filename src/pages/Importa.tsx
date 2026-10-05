@@ -106,18 +106,17 @@ export default function Importa() {
       <input type="file" accept=".xlsx,.xls" onChange={onFile} />
       {log ? <p className="text-sm font-medium">{log}</p> : null}
       {righe.length ? <button type="button" onClick={importa} className="bg-blue-600 text-white px-4 py-2 rounded-lg">Importa {righe.length} schede</button> : null}
-      <div className="space-y-2">
+            <div className="space-y-2">
         {righe.map((r, i) => (
-          <div key={i} className="bg-white rounded-xl shadow px-4 py-3 flex flex-wrap gap-3 items-center">
-            <p className="flex-1 text-lg font-semibold">{r.name}</p>
+          <div key={i} className="bg-white rounded-xl shadow p-4 space-y-2">
+            <p className="text-xl font-bold break-words">{r.name || 'NOME VUOTO'}</p>
             <p className="text-sm text-slate-500">{r.city || 'senza citta'} · {r.cf_piva || 'senza P.IVA'}</p>
-            <select value={r.kind} onChange={e => setKind(i, e.target.value as 'cliente' | 'fornitore')} className="border rounded-lg px-2 py-2">
+            <select value={r.kind} onChange={e => setKind(i, e.target.value as 'cliente' | 'fornitore')} className="border rounded-lg px-2 py-2 w-full">
               <option value="cliente">Cliente</option>
               <option value="fornitore">Fornitore</option>
             </select>
           </div>
         ))}
-      </div>
-    </div>
+      </div></div>
   )
 }

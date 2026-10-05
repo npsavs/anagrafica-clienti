@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 type Riga = {
   name: string
   kind: 'cliente' | 'fornitore'
+  privato: boolean
   cf_piva: string
   codice_sdi: string
   phone: string
@@ -19,7 +20,8 @@ type Riga = {
 }
 
 function v(row: any[], i: number) {
-  return String(row[i] ?? '').trim()
+  if (i < 0) return ''
+  return String(row[i] ?? '').replace(/\s+/g, ' ').trim()
 }
 
 export default function Importa() {
@@ -34,30 +36,38 @@ export default function Importa() {
       const wb = XLSX.read(reader.result, { type: 'array' })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[][]
+      const head = (rows[0] || []).map(x => String(x || '').trim().toUpperCase())
+      const col = (nome: string) => head.indexOf(nome)
       const out: Riga[] = []
       for (const row of rows.slice(1)) {
-        const name = v(row, 2) || (v(row, 4) + ' ' + v(row, 5)).trim()
+        const ragione = v(row, col('RAGIONE_SOCIALE'))
+        const nome = v(row, col('NOME'))
+        const cognome = v(row, col('COGNOME'))
+        const privato = v(row, col('PRIVATO')) === '1'
+        const persona = (nome + ' ' + cognome).trim()
+        const name = (privato ? persona : (ragione || persona)).replace(/^\./, '').trim()
         if (!name || name === '.') continue
-        const tipo = v(row, 1).toUpperCase()
-        const cf = v(row, 7)
-        const piva = v(row, 8)
+        const tipo = v(row, col('TIPO')).toUpperCase()
+        const piva = v(row, col('PARTITA_IVA'))
+        const cf = v(row, col('CODICE_FISCALE'))
         out.push({
           name,
+          privato,
           kind: tipo.indexOf('FORN') >= 0 ? 'fornitore' : 'cliente',
           cf_piva: (piva && piva !== '.' ? piva : cf).replace(/^\./, ''),
-          codice_sdi: v(row, 9),
-          phone: v(row, 11) || v(row, 10),
-          email: v(row, 13) || v(row, 15),
-          pec: v(row, 14),
-          address: v(row, 17),
-          zip: v(row, 18),
-          city: v(row, 19),
-          province: v(row, 20),
-          notes: [v(row, 26), v(row, 23)].filter(Boolean).join(' · '),
+          codice_sdi: v(row, col('COD_DEST')),
+          phone: v(row, col('CELLULARE')) || v(row, col('TELEFONO')),
+          email: v(row, col('EMAIL')) || v(row, col('EMAIL_ADMIN')),
+          pec: v(row, col('EMAIL_PEC')),
+          address: v(row, col('INDIRIZZO')),
+          zip: v(row, col('CAP')),
+          city: v(row, col('CITTA')),
+          province: v(row, col('PROVINCIA_SIGLA')),
+          notes: [v(row, col('NOTE')), v(row, col('SETTORE')), privato ? 'Privato' : ''].filter(Boolean).join(' · '),
         })
       }
       setRighe(out)
-      setLog('Lette ' + out.length + ' schede. Il nome e nella prima colonna della tabella.')
+      setLog(out.length ? ('Prima scheda: ' + out[0].name) : 'Nessun nome letto')
     }
     reader.readAsArrayBuffer(file)
   }
@@ -104,19 +114,20 @@ export default function Importa() {
       <Link to="/clienti" className="text-sm text-blue-600">Torna ai clienti</Link>
       <h1 className="text-2xl font-bold">Importa anagrafica</h1>
       <input type="file" accept=".xlsx,.xls" onChange={onFile} />
-      {log ? <p className="text-sm font-medium">{log}</p> : null}
+      {log ? <p className="text-base font-semibold">{log}</p> : null}
       {righe.length ? <button type="button" onClick={importa} className="bg-blue-600 text-white px-4 py-2 rounded-lg">Importa {righe.length} schede</button> : null}
-            <div className="space-y-2">
+      <div className="space-y-2">
         {righe.map((r, i) => (
           <div key={i} className="bg-white rounded-xl shadow p-4 space-y-2">
-            <p className="text-xl font-bold break-words">{r.name || 'NOME VUOTO'}</p>
-            <p className="text-sm text-slate-500">{r.city || 'senza citta'} · {r.cf_piva || 'senza P.IVA'}</p>
+            <p className="text-xl font-bold break-words">{r.name}</p>
+            <p className="text-sm text-slate-500">{r.privato ? 'Privato' : 'Azienda'} · {r.city || 'senza citta'} · {r.cf_piva || 'senza P.IVA'}</p>
             <select value={r.kind} onChange={e => setKind(i, e.target.value as 'cliente' | 'fornitore')} className="border rounded-lg px-2 py-2 w-full">
               <option value="cliente">Cliente</option>
               <option value="fornitore">Fornitore</option>
             </select>
           </div>
         ))}
-      </div></div>
+      </div>
+    </div>
   )
 }

@@ -86,8 +86,9 @@ export default function Lista() {
     <div className="space-y-4">
       <div className="flex justify-between items-center flex-wrap gap-2">
         <h1 className="text-2xl font-bold">{kind === 'fornitore' ? 'Fornitori' : 'Clienti'}</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button type="button" onClick={controllaDoppioni} className="border px-4 py-2 rounded-lg">Cerca doppioni</button>
+          <Link to="/importa" className="border px-4 py-2 rounded-lg">Importa CSV</Link>
           <Link to={'/nuovo?kind=' + kind} className="bg-blue-600 text-white px-4 py-2 rounded-lg">
             {kind === 'fornitore' ? '+ Nuovo fornitore' : '+ Nuovo cliente'}
           </Link>

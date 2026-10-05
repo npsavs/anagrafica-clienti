@@ -83,6 +83,10 @@ export default function Importa() {
     setRighe(prev => prev.map((r, n) => n === i ? { ...r, kind } : r))
   }
 
+  function togli(i: number) {
+    setRighe(prev => prev.filter((_, n) => n !== i))
+  }
+
   async function importa() {
     const { data: esistenti } = await supabase.from('clients').select('id, name, cf_piva')
     const gia = esistenti || []
@@ -114,6 +118,7 @@ export default function Importa() {
       gia.push({ id: '', name: r.name, cf_piva: r.cf_piva })
     }
     setLog('Importati ' + nuovi + '. Gia presenti ' + saltati + '.')
+    setRighe([])
   }
 
   return (
@@ -132,6 +137,7 @@ export default function Importa() {
               <option value="cliente">Cliente</option>
               <option value="fornitore">Fornitore</option>
             </select>
+            <button type="button" onClick={() => togli(i)} className="text-sm text-red-600">Elimina da questo import</button>
           </div>
         ))}
       </div>

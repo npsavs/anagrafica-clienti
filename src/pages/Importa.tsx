@@ -1,12 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import * as XLSX from 'xlsx'
 
 type Riga = {
   name: string
   kind: 'cliente' | 'fornitore'
-  privato: boolean
   cf_piva: string
   codice_sdi: string
   phone: string
@@ -20,56 +18,65 @@ type Riga = {
 }
 
 function v(row: any[], i: number) {
-  if (i < 0) return ''
   return String(row[i] ?? '').replace(/\s+/g, ' ').trim()
+}
+
+async function caricaExcel() {
+  const w = window as any
+  if (w.XLSX) return w.XLSX
+  await new Promise((resolve, reject) => {
+    const s = document.createElement('script')
+    s.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'
+    s.onload = () => resolve(null)
+    s.onerror = () => reject(new Error('Excel non caricato'))
+    document.body.appendChild(s)
+  })
+  return w.XLSX
 }
 
 export default function Importa() {
   const [righe, setRighe] = useState<Riga[]>([])
   const [log, setLog] = useState('')
 
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files && e.target.files[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const wb = XLSX.read(reader.result, { type: 'array' })
+    setLog('Lettura di ' + file.name + '...')
+    try {
+      const XLSX = await caricaExcel()
+      const buf = await file.arrayBuffer()
+      const wb = XLSX.read(buf, { type: 'array' })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[][]
-      const head = (rows[0] || []).map(x => String(x || '').trim().toUpperCase())
-      const col = (nome: string) => head.indexOf(nome)
       const out: Riga[] = []
       for (const row of rows.slice(1)) {
-        const ragione = v(row, col('RAGIONE_SOCIALE'))
-        const nome = v(row, col('NOME'))
-        const cognome = v(row, col('COGNOME'))
-        const privato = v(row, col('PRIVATO')) === '1'
-        const persona = (nome + ' ' + cognome).trim()
-        const name = (privato ? persona : (ragione || persona)).replace(/^\./, '').trim()
+        const ragione = v(row, 2)
+        const persona = (v(row, 4) + ' ' + v(row, 5)).trim()
+        const name = ragione || persona
         if (!name || name === '.') continue
-        const tipo = v(row, col('TIPO')).toUpperCase()
-        const piva = v(row, col('PARTITA_IVA'))
-        const cf = v(row, col('CODICE_FISCALE'))
+        const tipo = v(row, 1).toUpperCase()
+        const piva = v(row, 8)
+        const cf = v(row, 7)
         out.push({
           name,
-          privato,
           kind: tipo.indexOf('FORN') >= 0 ? 'fornitore' : 'cliente',
           cf_piva: (piva && piva !== '.' ? piva : cf).replace(/^\./, ''),
-          codice_sdi: v(row, col('COD_DEST')),
-          phone: v(row, col('CELLULARE')) || v(row, col('TELEFONO')),
-          email: v(row, col('EMAIL')) || v(row, col('EMAIL_ADMIN')),
-          pec: v(row, col('EMAIL_PEC')),
-          address: v(row, col('INDIRIZZO')),
-          zip: v(row, col('CAP')),
-          city: v(row, col('CITTA')),
-          province: v(row, col('PROVINCIA_SIGLA')),
-          notes: [v(row, col('NOTE')), v(row, col('SETTORE')), privato ? 'Privato' : ''].filter(Boolean).join(' · '),
+          codice_sdi: v(row, 9),
+          phone: v(row, 11) || v(row, 10),
+          email: v(row, 13) || v(row, 15),
+          pec: v(row, 14),
+          address: v(row, 17),
+          zip: v(row, 18),
+          city: v(row, 19),
+          province: v(row, 20),
+          notes: v(row, 26),
         })
       }
       setRighe(out)
-      setLog(out.length ? ('Prima scheda: ' + out[0].name) : 'Nessun nome letto')
+      setLog(out.length ? ('Lette ' + out.length + '. Prima: ' + out[0].name) : 'Nessun nome nella colonna ragione sociale')
+    } catch (err: any) {
+      setLog('Errore lettura: ' + (err.message || err))
     }
-    reader.readAsArrayBuffer(file)
   }
 
   function setKind(i: number, kind: 'cliente' | 'fornitore') {
@@ -120,7 +127,7 @@ export default function Importa() {
         {righe.map((r, i) => (
           <div key={i} className="bg-white rounded-xl shadow p-4 space-y-2">
             <p className="text-xl font-bold break-words">{r.name}</p>
-            <p className="text-sm text-slate-500">{r.privato ? 'Privato' : 'Azienda'} · {r.city || 'senza citta'} · {r.cf_piva || 'senza P.IVA'}</p>
+            <p className="text-sm text-slate-500">{r.kind === 'fornitore' ? 'Fornitore' : 'Cliente'} · {r.city || 'senza citta'} · {r.cf_piva || 'senza P.IVA'}</p>
             <select value={r.kind} onChange={e => setKind(i, e.target.value as 'cliente' | 'fornitore')} className="border rounded-lg px-2 py-2 w-full">
               <option value="cliente">Cliente</option>
               <option value="fornitore">Fornitore</option>

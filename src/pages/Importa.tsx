@@ -18,8 +18,10 @@ type Riga = {
   notes: string
 }
 
-function cella(row: any, nome: string) {
-  return String(row[nome] || '').trim()
+function norm(row: any) {
+  const out: Record<string, string> = {}
+  for (const k of Object.keys(row)) out[String(k).trim().toUpperCase()] = String(row[k] ?? '').trim()
+  return out
 }
 
 export default function Importa() {
@@ -35,31 +37,32 @@ export default function Importa() {
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' }) as any[]
       const out: Riga[] = []
-      for (const row of rows) {
-        const ragione = cella(row, 'RAGIONE_SOCIALE')
-        const nome = (cella(row, 'NOME') + ' ' + cella(row, 'COGNOME')).trim()
-        const name = ragione && ragione !== 'NUOVO CLIENTE' ? ragione : nome
+      for (const raw of rows) {
+        const row = norm(raw)
+        const ragione = row.RAGIONE_SOCIALE || ''
+        const nome = ((row.NOME || '') + ' ' + (row.COGNOME || '')).trim()
+        const name = (ragione || nome).replace(/\s+/g, ' ').trim()
         if (!name || name === '.') continue
-        const tipo = cella(row, 'TIPO').toUpperCase()
-        const piva = cella(row, 'PARTITA_IVA')
-        const cf = cella(row, 'CODICE_FISCALE')
+        const tipo = (row.TIPO || '').toUpperCase()
+        const piva = row.PARTITA_IVA || ''
+        const cf = row.CODICE_FISCALE || ''
         out.push({
           name,
           kind: tipo.indexOf('FORN') >= 0 ? 'fornitore' : 'cliente',
           cf_piva: (piva && piva !== '.' ? piva : cf).replace(/^\./, ''),
-          codice_sdi: cella(row, 'COD_DEST'),
-          phone: cella(row, 'CELLULARE') || cella(row, 'TELEFONO'),
-          email: cella(row, 'EMAIL') || cella(row, 'EMAIL_ADMIN'),
-          pec: cella(row, 'EMAIL_PEC'),
-          address: cella(row, 'INDIRIZZO'),
-          zip: cella(row, 'CAP'),
-          city: cella(row, 'CITTA'),
-          province: cella(row, 'PROVINCIA_SIGLA'),
-          notes: [cella(row, 'NOTE'), cella(row, 'SETTORE'), cella(row, 'FAX') ? 'Fax ' + cella(row, 'FAX') : ''].filter(Boolean).join(' · '),
+          codice_sdi: row.COD_DEST || '',
+          phone: row.CELLULARE || row.TELEFONO || '',
+          email: row.EMAIL || row.EMAIL_ADMIN || '',
+          pec: row.EMAIL_PEC || '',
+          address: row.INDIRIZZO || '',
+          zip: row.CAP || '',
+          city: row.CITTA || '',
+          province: row.PROVINCIA_SIGLA || '',
+          notes: [row.NOTE, row.SETTORE, row.FAX ? 'Fax ' + row.FAX : ''].filter(Boolean).join(' · '),
         })
       }
       setRighe(out)
-      setLog(out.length + ' righe lette. Su ogni riga scegli cliente o fornitore, poi importa.')
+      setLog(out.length + ' schede. Leggi il nome, scegli cliente o fornitore, poi importa.')
     }
     reader.readAsArrayBuffer(file)
   }
@@ -105,23 +108,35 @@ export default function Importa() {
     <div className="space-y-4">
       <Link to="/clienti" className="text-sm text-blue-600">Torna ai clienti</Link>
       <h1 className="text-2xl font-bold">Importa anagrafica</h1>
-      <p className="text-sm text-slate-600">Carica il file Excel .xlsx. Il tipo del file e gia impostato, ma puoi cambiarlo riga per riga.</p>
       <input type="file" accept=".xlsx,.xls" onChange={onFile} />
       {log ? <p className="text-sm">{log}</p> : null}
       {righe.length ? <button type="button" onClick={importa} className="bg-blue-600 text-white px-4 py-2 rounded-lg">Importa {righe.length} schede</button> : null}
-      <div className="bg-white rounded-xl shadow divide-y">
-        {righe.map((r, i) => (
-          <div key={i} className="px-4 py-3 flex flex-wrap gap-2 items-center">
-            <div className="flex-1 min-w-[180px]">
-              <p className="font-medium">{r.name}</p>
-              <p className="text-xs text-slate-500">{r.cf_piva || 'senza P.IVA'} · {r.city} · {r.phone}</p>
-            </div>
-            <select value={r.kind} onChange={e => setKind(i, e.target.value as 'cliente' | 'fornitore')} className="border rounded-lg px-2 py-1">
-              <option value="cliente">Cliente</option>
-              <option value="fornitore">Fornitore</option>
-            </select>
-          </div>
-        ))}
+      <div className="bg-white rounded-xl shadow overflow-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left border-b">
+              <th className="p-3">Nome</th>
+              <th className="p-3">P.IVA / CF</th>
+              <th className="p-3">Citta</th>
+              <th className="p-3">Tipo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {righe.map((r, i) => (
+              <tr key={i} className="border-b">
+                <td className="p-3 font-medium">{r.name}</td>
+                <td className="p-3">{r.cf_piva || '-'}</td>
+                <td className="p-3">{r.city || '-'}</td>
+                <td className="p-3">
+                  <select value={r.kind} onChange={e => setKind(i, e.target.value as 'cliente' | 'fornitore')} className="border rounded-lg px-2 py-1">
+                    <option value="cliente">Cliente</option>
+                    <option value="fornitore">Fornitore</option>
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )

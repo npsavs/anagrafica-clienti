@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 type Riga = {
@@ -15,6 +15,10 @@ type Riga = {
   city: string
   province: string
   notes: string
+  doppioneId?: string
+  doppioneNome?: string
+  doppioneTel?: string
+  azione?: 'unisci' | 'modifica' | 'nuovo'
 }
 
 function v(row: any[], i: number) {
@@ -35,6 +39,7 @@ async function caricaExcel() {
 }
 
 export default function Importa() {
+  const navigate = useNavigate()
   const [righe, setRighe] = useState<Riga[]>([])
   const [log, setLog] = useState('')
 
@@ -48,6 +53,8 @@ export default function Importa() {
       const wb = XLSX.read(buf, { type: 'array' })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[][]
+      const { data: esistenti } = await supabase.from('clients').select('id, name, cf_piva, phone')
+      const gia = esistenti || []
       const out: Riga[] = []
       for (const row of rows.slice(1)) {
         const ragione = v(row, 2)
@@ -57,12 +64,18 @@ export default function Importa() {
         const tipo = v(row, 1).toUpperCase()
         const piva = v(row, 8)
         const cf = v(row, 7)
+        const cfPiva = (piva && piva !== '.' ? piva : cf).replace(/^\./, '')
+        const tel = v(row, 11) || v(row, 10)
+        const trovato = gia.find(c =>
+          (cfPiva && String(c.cf_piva || '').replace(/\s/g, '') === cfPiva.replace(/\s/g, '')) ||
+          String(c.name || '').trim().toLowerCase() === name.trim().toLowerCase()
+        )
         out.push({
           name,
           kind: tipo.indexOf('FORN') >= 0 ? 'fornitore' : 'cliente',
-          cf_piva: (piva && piva !== '.' ? piva : cf).replace(/^\./, ''),
+          cf_piva: cfPiva,
           codice_sdi: v(row, 9),
-          phone: v(row, 11) || v(row, 10),
+          phone: tel,
           email: v(row, 13) || v(row, 15),
           pec: v(row, 14),
           address: v(row, 17),
@@ -70,35 +83,53 @@ export default function Importa() {
           city: v(row, 19),
           province: v(row, 20),
           notes: v(row, 26),
+          doppioneId: trovato?.id,
+          doppioneNome: trovato?.name,
+          doppioneTel: trovato?.phone || '',
+          azione: trovato ? undefined : 'nuovo',
         })
       }
       setRighe(out)
-      setLog(out.length ? ('Lette ' + out.length + '. Prima: ' + out[0].name) : 'Nessun nome nella colonna ragione sociale')
+      const nDoppi = out.filter(r => r.doppioneId).length
+      setLog('Lette ' + out.length + '. Doppioni da decidere: ' + nDoppi)
     } catch (err: any) {
       setLog('Errore lettura: ' + (err.message || err))
     }
   }
 
-  function setKind(i: number, kind: 'cliente' | 'fornitore') {
-    setRighe(prev => prev.map((r, n) => n === i ? { ...r, kind } : r))
+  function setAzione(i: number, azione: 'unisci' | 'modifica' | 'nuovo') {
+    setRighe(prev => prev.map((r, n) => n === i ? { ...r, azione } : r))
   }
-
   function togli(i: number) {
     setRighe(prev => prev.filter((_, n) => n !== i))
   }
 
   async function importa() {
-    const { data: esistenti } = await supabase.from('clients').select('id, name, cf_piva')
-    const gia = esistenti || []
+    const indecisi = righe.filter(r => r.doppioneId && !r.azione)
+    if (indecisi.length) return alert('Sui doppioni scegli Unisci o Modifica')
     let nuovi = 0
-    let saltati = 0
+    let uniti = 0
     for (const r of righe) {
-      const piva = r.cf_piva.replace(/\s/g, '')
-      const trovato = gia.find(c =>
-        (piva && String(c.cf_piva || '').replace(/\s/g, '') === piva) ||
-        String(c.name || '').trim().toLowerCase() === r.name.trim().toLowerCase()
-      )
-      if (trovato) { saltati++; continue }
+      if (r.azione === 'modifica' && r.doppioneId) {
+        navigate('/cliente/' + r.doppioneId + '/modifica')
+        return
+      }
+      if (r.azione === 'unisci' && r.doppioneId) {
+        const { error } = await supabase.from('clients').update({
+          phone: r.phone || null,
+          email: r.email || null,
+          pec: r.pec || null,
+          address: r.address || null,
+          zip: r.zip || null,
+          city: r.city || null,
+          province: r.province || null,
+          cf_piva: r.cf_piva || null,
+          codice_sdi: r.codice_sdi || null,
+        }).eq('id', r.doppioneId)
+        if (error) return setLog(error.message)
+        uniti++
+        continue
+      }
       const { error } = await supabase.from('clients').insert({
         name: r.name,
         kind: r.kind,
@@ -115,9 +146,8 @@ export default function Importa() {
       })
       if (error) return setLog(error.message)
       nuovi++
-      gia.push({ id: '', name: r.name, cf_piva: r.cf_piva })
     }
-    setLog('Importati ' + nuovi + '. Gia presenti ' + saltati + '.')
+    setLog('Nuovi ' + nuovi + '. Uniti ' + uniti + '.')
     setRighe([])
   }
 
@@ -132,11 +162,18 @@ export default function Importa() {
         {righe.map((r, i) => (
           <div key={i} className="bg-white rounded-xl shadow p-4 space-y-2">
             <p className="text-xl font-bold break-words">{r.name}</p>
+            <p className="text-sm font-semibold">{r.phone || 'Nessun telefono'}</p>
             <p className="text-sm text-slate-500">{r.kind === 'fornitore' ? 'Fornitore' : 'Cliente'} · {r.city || 'senza citta'} · {r.cf_piva || 'senza P.IVA'}</p>
-            <select value={r.kind} onChange={e => setKind(i, e.target.value as 'cliente' | 'fornitore')} className="border rounded-lg px-2 py-2 w-full">
-              <option value="cliente">Cliente</option>
-              <option value="fornitore">Fornitore</option>
-            </select>
+            {r.doppioneId ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
+                <p className="text-sm font-semibold">Doppione gia presente: {r.doppioneNome}</p>
+                <p className="text-sm">Telefono in anagrafica: {r.doppioneTel || 'nessuno'}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => setAzione(i, 'unisci')} className={'px-3 py-1 rounded ' + (r.azione === 'unisci' ? 'bg-blue-600 text-white' : 'border')}>Unisci</button>
+                  <button type="button" onClick={() => setAzione(i, 'modifica')} className={'px-3 py-1 rounded ' + (r.azione === 'modifica' ? 'bg-blue-600 text-white' : 'border')}>Modifica</button>
+                </div>
+              </div>
+            ) : null}
             <button type="button" onClick={() => togli(i)} className="text-sm text-red-600">Elimina da questo import</button>
           </div>
         ))}

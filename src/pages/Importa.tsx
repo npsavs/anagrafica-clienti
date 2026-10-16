@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 type Riga = {
@@ -38,10 +38,23 @@ async function caricaExcel() {
   return w.XLSX
 }
 
+async function tuttiClienti() {
+  const out: any[] = []
+  let da = 0
+  while (true) {
+    const { data, error } = await supabase.from('clients').select('id, name, cf_piva, phone').range(da, da + 999)
+    if (error) throw error
+    out.push(...(data || []))
+    if (!data || data.length < 1000) break
+    da += 1000
+  }
+  return out
+}
+
 export default function Importa() {
-  const navigate = useNavigate()
   const [righe, setRighe] = useState<Riga[]>([])
   const [log, setLog] = useState('')
+  const [busy, setBusy] = useState(false)
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files && e.target.files[0]
@@ -53,8 +66,7 @@ export default function Importa() {
       const wb = XLSX.read(buf, { type: 'array' })
       const sheet = wb.Sheets[wb.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[][]
-      const { data: esistenti } = await supabase.from('clients').select('id, name, cf_piva, phone')
-      const gia = esistenti || []
+      const gia = await tuttiClienti()
       const out: Riga[] = []
       for (const row of rows.slice(1)) {
         const ragione = v(row, 2)
@@ -91,7 +103,7 @@ export default function Importa() {
       }
       setRighe(out)
       const nDoppi = out.filter(r => r.doppioneId).length
-      setLog('Lette ' + out.length + '. Doppioni da decidere: ' + nDoppi)
+      setLog('Lette ' + out.length + '. Doppioni da decidere: ' + nDoppi + '. Nuovi: ' + (out.length - nDoppi))
     } catch (err: any) {
       setLog('Errore lettura: ' + (err.message || err))
     }
@@ -103,34 +115,19 @@ export default function Importa() {
   function togli(i: number) {
     setRighe(prev => prev.filter((_, n) => n !== i))
   }
+  function unisciTutti() {
+    setRighe(prev => prev.map(r => r.doppioneId ? { ...r, azione: 'unisci' } : r))
+  }
 
   async function importa() {
     const indecisi = righe.filter(r => r.doppioneId && !r.azione)
-    if (indecisi.length) return alert('Sui doppioni scegli Unisci o Modifica')
+    if (indecisi.length) return alert('Sui doppioni scegli Unisci o Modifica. Oppure premi Unisci tutti.')
+    setBusy(true)
     let nuovi = 0
     let uniti = 0
-    for (const r of righe) {
-      if (r.azione === 'modifica' && r.doppioneId) {
-        navigate('/cliente/' + r.doppioneId + '/modifica')
-        return
-      }
-      if (r.azione === 'unisci' && r.doppioneId) {
-        const { error } = await supabase.from('clients').update({
-          phone: r.phone || null,
-          email: r.email || null,
-          pec: r.pec || null,
-          address: r.address || null,
-          zip: r.zip || null,
-          city: r.city || null,
-          province: r.province || null,
-          cf_piva: r.cf_piva || null,
-          codice_sdi: r.codice_sdi || null,
-        }).eq('id', r.doppioneId)
-        if (error) return setLog(error.message)
-        uniti++
-        continue
-      }
-      const { error } = await supabase.from('clients').insert({
+    const daInserire = righe.filter(r => r.azione !== 'unisci' && r.azione !== 'modifica')
+    for (let i = 0; i < daInserire.length; i += 200) {
+      const blocco = daInserire.slice(i, i + 200).map(r => ({
         name: r.name,
         kind: r.kind,
         cf_piva: r.cf_piva || null,
@@ -143,13 +140,34 @@ export default function Importa() {
         city: r.city || null,
         province: r.province || null,
         notes: r.notes || null,
-      })
-      if (error) return setLog(error.message)
-      nuovi++
+      }))
+      const { error } = await supabase.from('clients').insert(blocco)
+      if (error) { setBusy(false); return setLog('Errore al blocco ' + (i + 1) + ': ' + error.message) }
+      nuovi += blocco.length
+      setLog('Inseriti ' + nuovi + ' di ' + daInserire.length)
     }
-    setLog('Nuovi ' + nuovi + '. Uniti ' + uniti + '.')
+    for (const r of righe.filter(x => x.azione === 'unisci' && x.doppioneId)) {
+      const { error } = await supabase.from('clients').update({
+        phone: r.phone || null,
+        email: r.email || null,
+        pec: r.pec || null,
+        address: r.address || null,
+        zip: r.zip || null,
+        city: r.city || null,
+        province: r.province || null,
+        cf_piva: r.cf_piva || null,
+        codice_sdi: r.codice_sdi || null,
+      }).eq('id', r.doppioneId)
+      if (error) { setBusy(false); return setLog(error.message) }
+      uniti++
+    }
+    setBusy(false)
+    setLog('Finito. Nuovi ' + nuovi + '. Uniti ' + uniti + '.')
     setRighe([])
   }
+
+  const doppioni = righe.filter(r => r.doppioneId)
+  const nuovi = righe.filter(r => !r.doppioneId)
 
   return (
     <div className="space-y-4">
@@ -157,27 +175,33 @@ export default function Importa() {
       <h1 className="text-2xl font-bold">Importa anagrafica</h1>
       <input type="file" accept=".xlsx,.xls" onChange={onFile} />
       {log ? <p className="text-base font-semibold">{log}</p> : null}
-      {righe.length ? <button type="button" onClick={importa} className="bg-blue-600 text-white px-4 py-2 rounded-lg">Importa {righe.length} schede</button> : null}
-      <div className="space-y-2">
-        {righe.map((r, i) => (
-          <div key={i} className="bg-white rounded-xl shadow p-4 space-y-2">
-            <p className="text-xl font-bold break-words">{r.name}</p>
-            <p className="text-sm font-semibold">{r.phone || 'Nessun telefono'}</p>
-            <p className="text-sm text-slate-500">{r.kind === 'fornitore' ? 'Fornitore' : 'Cliente'} · {r.city || 'senza citta'} · {r.cf_piva || 'senza P.IVA'}</p>
-            {r.doppioneId ? (
+      {righe.length ? (
+        <div className="flex flex-wrap gap-2">
+          <button type="button" disabled={busy} onClick={importa} className="bg-blue-600 text-white px-4 py-2 rounded-lg">Importa {righe.length} schede</button>
+          {doppioni.length ? <button type="button" onClick={unisciTutti} className="border px-4 py-2 rounded-lg">Unisci tutti i doppioni</button> : null}
+        </div>
+      ) : null}
+      {doppioni.length ? (
+        <div className="space-y-2">
+          <p className="font-semibold">Doppioni da decidere ({doppioni.length})</p>
+          {doppioni.map((r, i) => (
+            <div key={i} className="bg-white rounded-xl shadow p-4 space-y-2">
+              <p className="text-lg font-bold break-words">{r.name}</p>
+              <p className="text-sm">{r.phone || 'Nessun telefono'} · {r.kind === 'fornitore' ? 'Fornitore' : 'Cliente'}</p>
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
-                <p className="text-sm font-semibold">Doppione gia presente: {r.doppioneNome}</p>
+                <p className="text-sm font-semibold">Gia presente: {r.doppioneNome}</p>
                 <p className="text-sm">Telefono in anagrafica: {r.doppioneTel || 'nessuno'}</p>
                 <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => setAzione(i, 'unisci')} className={'px-3 py-1 rounded ' + (r.azione === 'unisci' ? 'bg-blue-600 text-white' : 'border')}>Unisci</button>
-                  <button type="button" onClick={() => setAzione(i, 'modifica')} className={'px-3 py-1 rounded ' + (r.azione === 'modifica' ? 'bg-blue-600 text-white' : 'border')}>Modifica</button>
+                  <button type="button" onClick={() => setAzione(righe.indexOf(r), 'unisci')} className={'px-3 py-1 rounded ' + (r.azione === 'unisci' ? 'bg-blue-600 text-white' : 'border')}>Unisci</button>
+                  <button type="button" onClick={() => setAzione(righe.indexOf(r), 'nuovo')} className={'px-3 py-1 rounded ' + (r.azione === 'nuovo' ? 'bg-blue-600 text-white' : 'border')}>Importa lo stesso</button>
                 </div>
               </div>
-            ) : null}
-            <button type="button" onClick={() => togli(i)} className="text-sm text-red-600">Elimina da questo import</button>
-          </div>
-        ))}
-      </div>
+              <button type="button" onClick={() => togli(righe.indexOf(r))} className="text-sm text-red-600">Togli da questo import</button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {nuovi.length ? <p className="text-sm text-slate-500">Nuovi da inserire: {nuovi.length}. Non li elenco tutti per non appesantire la pagina.</p> : null}
     </div>
   )
 }

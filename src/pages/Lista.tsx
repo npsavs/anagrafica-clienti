@@ -3,6 +3,19 @@ import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import type { Client } from '../types'
 
+async function tuttiClienti() {
+  const out: Client[] = []
+  let da = 0
+  while (true) {
+    const { data, error } = await supabase.from('clients').select('*').order('name').range(da, da + 999)
+    if (error) throw error
+    out.push(...(data || []))
+    if (!data || data.length < 1000) break
+    da += 1000
+  }
+  return out
+}
+
 export default function Lista() {
   const location = useLocation()
   const kind = location.pathname.indexOf('fornitori') >= 0 ? 'fornitore' : 'cliente'
@@ -14,8 +27,12 @@ export default function Lista() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data } = await supabase.from('clients').select('*').order('name')
-    setClients(data || [])
+    try {
+      const data = await tuttiClienti()
+      setClients(data)
+    } catch (e: any) {
+      alert(e.message || e)
+    }
     setLoading(false)
   }
 
@@ -24,9 +41,8 @@ export default function Lista() {
   }
 
   async function controllaDoppioni() {
-    const { data, error } = await supabase.from('clients').select('*').order('name')
-    if (error) return alert(error.message)
-    const lista = data || []
+    let lista: Client[] = []
+    try { lista = await tuttiClienti() } catch (e: any) { return alert(e.message || e) }
     const gruppi: Record<string, Client[]> = {}
     for (const c of lista) {
       const k = chiave(c)
@@ -50,8 +66,7 @@ export default function Lista() {
         if (err) alert(err.message)
       }
     }
-    const dopo = await supabase.from('clients').select('*').order('name')
-    setClients(dopo.data || [])
+    setClients(await tuttiClienti())
     alert('Controllo finito')
   }
 

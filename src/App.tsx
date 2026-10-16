@@ -9,6 +9,7 @@ import Dettaglio from './pages/Dettaglio'
 import Nuovo from './pages/Nuovo'
 import Modifica from './pages/Modifica'
 import Importa from './pages/Importa'
+import Svuota from './pages/Svuota'
 
 export default function App() {
   const [session, setSession] = useState<any>(null)
@@ -37,6 +38,7 @@ export default function App() {
           <Route path="cliente/:id" element={<Dettaglio />} />
           <Route path="cliente/:id/modifica" element={<Modifica />} />
 <Route path="importa" element={<Importa />} />
+<Route path="svuota" element={<Svuota />} />
         </Route>
       </Routes>
     </BrowserRouter>
